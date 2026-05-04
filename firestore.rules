@@ -1,0 +1,93 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Default deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Helper functions
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation helpers
+    function isValidUser(data) {
+      return data.uid == request.auth.uid &&
+             data.email is string && data.email.size() > 0 && data.email.size() <= 200 &&
+             (!('displayName' in data) || (data.displayName is string && data.displayName.size() <= 100)) &&
+             (!('photoURL' in data) || (data.photoURL is string && data.photoURL.size() <= 500));
+    }
+
+    function isValidFolder(data) {
+      return data.userId == request.auth.uid &&
+             data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+             (!('color' in data) || (data.color is string && data.color.size() <= 20)) &&
+             (!('description' in data) || (data.description is string && data.description.size() <= 1000));
+    }
+
+    function isValidPlantRecord(data) {
+      return data.userId == request.auth.uid &&
+             data.plantName is string && data.plantName.size() > 0 && data.plantName.size() <= 200 &&
+             (!('scientificName' in data) || (data.scientificName is string && data.scientificName.size() <= 200)) &&
+             data.imageUrl is string && data.imageUrl.size() > 0 && data.imageUrl.size() <= 2000000 &&
+             (!('folderId' in data) || data.folderId == null || isValidId(data.folderId)) &&
+             (!('analysis' in data) || (data.analysis is string && data.analysis.size() <= 100000)) &&
+             (!('family' in data) || (data.family is string && data.family.size() <= 200)) &&
+             (!('uses' in data) || (data.uses is string && data.uses.size() <= 1000)) &&
+             (!('growingSeason' in data) || (data.growingSeason is string && data.growingSeason.size() <= 200)) &&
+             data.createdAt == request.time;
+    }
+
+    // Collection matches
+
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow create: if isOwner(userId) && isValidUser(incoming()) && incoming().createdAt == request.time;
+      allow update: if isOwner(userId) && isValidUser(incoming()) && 
+                    incoming().uid == existing().uid && 
+                    incoming().createdAt == existing().createdAt;
+    }
+
+    match /folders/{folderId} {
+      allow get: if isSignedIn() && isOwner(existing().userId);
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && isValidFolder(incoming()) && incoming().createdAt == request.time;
+      allow update: if isSignedIn() && isOwner(existing().userId) && isValidFolder(incoming()) &&
+                    incoming().userId == existing().userId &&
+                    incoming().createdAt == existing().createdAt &&
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'color']);
+      allow delete: if isSignedIn() && isOwner(existing().userId);
+
+      match /plants/{plantId} {
+        allow create: if isSignedIn() && isValidPlantRecord(incoming()) && 
+                      incoming().folderId == folderId &&
+                      isOwner(get(/databases/$(database)/documents/folders/$(folderId)).data.userId);
+        allow delete: if isSignedIn() && isOwner(existing().userId);
+      }
+    }
+
+    // Collection Group Match for listing plants across all folders
+    match /{path=**}/plants/{plantId} {
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow get: if isSignedIn() && isOwner(resource.data.userId);
+    }
+  }
+}

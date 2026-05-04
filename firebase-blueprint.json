@@ -1,0 +1,62 @@
+{
+  "entities": {
+    "User": {
+      "title": "User Profile",
+      "description": "Information about the student or user.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "Folder": {
+      "title": "Research Folder",
+      "description": "A folder to categorize research (e.g., Medicinal, Crops).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "color": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name"]
+    },
+    "PlantRecord": {
+      "title": "Plant Record",
+      "description": "A saved plant identification record in the new format.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "folderId": { "type": "string" },
+        "plantName": { "type": "string" },
+        "scientificName": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "analysis": { "type": "string" },
+        "family": { "type": "string" },
+        "uses": { "type": "string" },
+        "growingSeason": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "plantName", "imageUrl"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profile data"
+    },
+    "folders/{folderId}": {
+      "schema": "Folder",
+      "description": "Student research folders"
+    },
+    "folders/{folderId}/plants/{plantId}": {
+      "schema": "PlantRecord",
+      "description": "Plant records saved within specific research folders"
+    }
+  }
+}
